@@ -1,0 +1,42 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: spider-front
+  namespace: default
+  labels:
+    app: spider-front
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spider-front
+  template:
+    metadata:
+      labels:
+        app: spider-front
+        name: spider-front
+    spec:
+      containers:
+      - image: <IMAGE>:<IMAGE_TAG>
+        name: spider-front
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9099
+          name: spiderfrontport
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: spiderfront-svc
+  namespace: default
+spec:
+  selector:
+    app: spider-front
+  type: NodePort
+  ports:
+  - name: spiderfront
+    port: 9099
+    targetPort: 9099
+    nodePort: 32099

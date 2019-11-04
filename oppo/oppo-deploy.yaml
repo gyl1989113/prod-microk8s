@@ -1,0 +1,33 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: oppo-cm-1
+  labels:
+    app: oppo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oppo
+  template:
+    metadata:
+      labels:
+        app: oppo
+        name: oppo
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k8s-master-1
+      containers:
+      - image: oppo:v1
+        name: oppo
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9311
+          name: api
+        volumeMounts:
+        - mountPath: "/app/config"
+          name: oppo-cm
+      volumes:
+      - configMap:
+          name: oppo-config
+        name: oppo-cm

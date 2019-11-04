@@ -1,0 +1,25 @@
+server:
+  port: 9761
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+#      defaultZone: http://user:password@localhost:8761/eureka
+      defaultZone: http://172.22.67.210:9761/eureka
+  # 测试时关闭自我保护机制，保证不可用服务及时踢出
+  server:
+    enable-self-preservation: false
+    eviction-interval-timer-in-ms: 4000
+  # 心跳检测检测与续约时间
+  # 测试时将值设置设置小些，保证服务关闭后注册中心能及时踢出服务
+  instance:
+      lease-renewal-interval-in-seconds: 1
+      lease-expiration-duration-in-seconds: 2
+#启用权限验证
+security:
+  basic:
+    enabled: false
+  user:
+    name: jepAdmin
+    password: 123456

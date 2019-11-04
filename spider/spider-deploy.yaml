@@ -1,0 +1,47 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: spider-cm-1
+  namespace: default
+  labels:
+    app: spider
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spider
+  template:
+    metadata:
+      labels:
+        app: spider
+        name: spider
+    spec:
+      containers:
+      - image: <IMAGE>:<IMAGE_TAG>
+        name: spider
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9300
+          name: spiderapi
+        volumeMounts:
+        - mountPath: "/app/config"
+          name: spider-cm
+      volumes:
+      - configMap:
+          name: spider-config
+        name: spider-cm
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: spider-svc
+  namespace: default
+spec:
+  selector:
+    app: spider
+  ports:
+  - name: spider
+    port: 9300
+    targetPort: 9300

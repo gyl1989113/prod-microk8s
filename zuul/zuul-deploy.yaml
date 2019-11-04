@@ -1,0 +1,47 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: zuul-cm-1
+  namespace: default
+  labels:
+    app: zuul
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zuul
+  template:
+    metadata:
+      labels:
+        app: zuul
+        name: zuul
+    spec:
+      containers:
+      - image: <IMAGE>:<IMAGE_TAG>
+        name: zuul
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8770
+          name: zuulapi
+        volumeMounts:
+        - mountPath: "/app/config"
+          name: zuul-cm
+      volumes:
+      - configMap:
+          name: zuul-config
+        name: zuul-cm
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: zuul-svc
+  namespace: default
+spec:
+  selector:
+    app: zuul
+  ports:
+  - name: zuul
+    port: 8770
+    targetPort: 8770

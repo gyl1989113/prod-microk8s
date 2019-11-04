@@ -1,0 +1,15 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: spider.com
+  namespace: default
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+spec:
+  rules:
+  - host: onestop.k8s.com
+    http:
+      paths:
+      - backend:
+          serviceName: spiderfront-svc
+          servicePort: 9099

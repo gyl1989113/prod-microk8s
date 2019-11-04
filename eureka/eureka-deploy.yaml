@@ -1,0 +1,49 @@
+kind: Service
+apiVersion: v1
+metadata:
+  name: eureka-svc
+spec:
+  selector:
+    app: eureka
+  type: NodePort
+  ports:
+  - name: web
+    port: 9761
+    targetPort: 9761
+    nodePort: 32761
+
+---
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: eureka-cm-1
+  labels:
+    app: eureka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eureka
+  template:
+    metadata:
+      labels:
+        app: eureka
+        name: eureka
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k8s-master-1
+      containers:
+      - image: 172.22.67.230/eureka/eureka:8a53878
+        name: eureka
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9761
+          name: eurekaapi
+        volumeMounts:
+        - mountPath: "/app/config"
+          name: eureka-cm
+      volumes:
+      - configMap:
+          name: eureka-config
+        name: eureka-cm

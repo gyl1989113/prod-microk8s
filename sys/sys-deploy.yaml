@@ -1,0 +1,32 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: sys-cm-1
+  namespace: default
+  labels:
+    app: sys
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sys
+  template:
+    metadata:
+      labels:
+        app: sys
+        name: sys
+    spec:
+      containers:
+      - image: <IMAGE>:<IMAGE_TAG>
+        name: sys
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9101
+          name: sysapi
+        volumeMounts:
+        - mountPath: "/app/config"
+          name: sys-cm
+      volumes:
+      - configMap:
+          name: sys-config
+        name: sys-cm
