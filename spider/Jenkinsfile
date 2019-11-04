@@ -1,0 +1,77 @@
+def label = "slave-${UUID.randomUUID().toString()}"
+
+podTemplate(label: label, serviceAccount: 'jenkins', containers: [
+  containerTemplate(name: 'maven', image: 'maven:3.6-alpine', command: 'cat', ttyEnabled: true),
+  containerTemplate(name: 'docker', image: 'docker', command: 'cat', ttyEnabled: true),
+  containerTemplate(name: 'kubectl', image: 'cnych/kubectl', command: 'cat', ttyEnabled: true),
+  
+], volumes: [
+  hostPathVolume(mountPath: '/root/.m2', hostPath: '/var/run/m2'),
+  hostPathVolume(mountPath: '/home/jenkins/.kube', hostPath: '/root/.kube'),
+  hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock'),
+  hostPathVolume(mountPath: '/home/jenkins/reliable', hostPath: '/root/manifest')
+]) {
+  node(label) {
+    def dockerRegistryUrl = "172.22.67.230"
+    def imageEndpoint = "spider"
+    def image = "${dockerRegistryUrl}/${imageEndpoint}/${imageEndpoint}"
+
+    stage('Clone') {
+    echo "1.Clone Stage"
+    sh "git config --global http.sslVerify false"
+    git branch: 'zeus', credentialsId: 'gitlab', url: 'https://salesassist.pactera.com:8443/project/java/app/ijep-spider-parent.git'
+    script {
+        imageTag = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+		}
+        
+    }
+	
+	stage('代码编译打包') {
+	  try {
+	    container('maven') {
+		  echo "2. 代码编译打包阶段"
+		  sh "mvn clean install -pl ./ijep-spider-service -am"
+		}
+	  } catch (exc) {
+	    println "构建失败 - ${currentBuild.fullDisplayName}"
+		throw(exc)
+		}
+	}
+	  
+	
+	stage('Build') {
+	  withCredentials([[$class: 'UsernamePasswordMultiBinding',
+        credentialsId: 'dockerHub',
+        usernameVariable: 'DOCKER_HUB_USER',
+        passwordVariable: 'DOCKER_HUB_PASSWORD']]) {
+		  container('docker') {
+		  
+            echo "3.Build Docker Image Stage"
+			sh """
+              pwd
+	          cp /home/jenkins/reliable/spider/Dockerfile .
+			  docker login ${dockerRegistryUrl} -u ${DOCKER_HUB_USER} -p ${DOCKER_HUB_PASSWORD}
+              docker build -t ${image}:${imageTag} .
+              docker push ${image}:${imageTag}
+			  """
+		  }
+      }    
+    
+	}
+	
+	stage('运行 Kubectl') {
+		container('kubectl') {
+			echo "查看 K8S 集群 Pod 列表"
+			
+			sh """
+			    cp /home/jenkins/reliable/spider/spider-deploy.yaml .
+				sed -i "s#<IMAGE>#${image}#" spider-deploy.yaml
+				sed -i "s#<IMAGE_TAG>#${imageTag}#" spider-deploy.yaml
+				kubectl apply -f spider-deploy.yaml
+				kubectl get pod -n default
+			"""
+		}
+	}
+
+	}
+}

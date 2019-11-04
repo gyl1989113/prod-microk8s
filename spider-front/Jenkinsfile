@@ -1,0 +1,74 @@
+def label = "slave-${UUID.randomUUID().toString()}"
+
+podTemplate(label: label, serviceAccount: 'jenkins', containers: [
+  containerTemplate(name: 'node', image: 'node:alpine', command: 'cat', ttyEnabled: true),
+  containerTemplate(name: 'docker', image: 'docker', command: 'cat', ttyEnabled: true),
+  containerTemplate(name: 'kubectl', image: 'cnych/kubectl', command: 'cat', ttyEnabled: true),
+], volumes: [
+  hostPathVolume(mountPath: '/home/jenkins/.kube', hostPath: '/root/.kube'),
+  hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock'),
+  hostPathVolume(mountPath: '/home/jenkins/reliable', hostPath: '/root/manifest')
+]) {
+  node(label) {
+    
+    def dockerRegistryUrl = "172.22.67.230"
+    def imageEndpoint = "spider-front"
+    def image = "${dockerRegistryUrl}/${imageEndpoint}/${imageEndpoint}"
+
+    stage('Clone') {
+    echo "1.Clone Stage"
+    sh "git config --global http.sslVerify false"    
+    git branch: 'zeus', credentialsId: 'gitlab', url: 'https://salesassist.pactera.com:8443/project/web-front/vue/business/app-spider-console.git'
+    script {
+        imageTag = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+		}
+        
+    }
+    stage('编译打包') {
+      echo "2.编译打包"
+      container('node') {
+        sh """
+          cp /home/jenkins/reliable/spider-front/webpack.prod.config.js ./build/webpack.prod.config.js
+		  sed -i "s#localhost:9000/api#172.22.67.220:32099/spider#" ./src/config/app.js
+          cp /home/jenkins/reliable/spider-front/node_modules ./node_modules -r
+          npm run build
+          ls -la
+          
+        """
+      }
+    }
+    stage('构建 Docker 镜像') {
+      withCredentials([[$class: 'UsernamePasswordMultiBinding',
+        credentialsId: 'dockerHub',
+        usernameVariable: 'DOCKER_HUB_USER',
+        passwordVariable: 'DOCKER_HUB_PASSWORD']]) {
+          container('docker') {
+            echo "3. 构建 Docker 镜像阶段"
+            sh """
+              cp /home/jenkins/reliable/spider-front/Dockerfile .
+			  cp /home/jenkins/reliable/spider-front/spider.conf .
+			  cp /home/jenkins/reliable/spider-front/spiderfront-deploy.yaml .
+              docker login ${dockerRegistryUrl} -u ${DOCKER_HUB_USER} -p ${DOCKER_HUB_PASSWORD}
+              docker build -t ${image}:${imageTag} .
+              docker push ${image}:${imageTag}
+              """
+          }
+      }
+    }
+	
+	stage('运行 Kubectl') {
+		container('kubectl') {
+			echo "查看 K8S 集群 Pod 列表"
+			
+			sh """
+			    
+				sed -i "s#<IMAGE>#${image}#" spiderfront-deploy.yaml
+				sed -i "s#<IMAGE_TAG>#${imageTag}#" spiderfront-deploy.yaml
+				kubectl apply -f spiderfront-deploy.yaml
+				kubectl get pod -n default
+			"""
+		}
+	}
+    
+  }
+}
